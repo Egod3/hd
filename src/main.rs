@@ -5,6 +5,8 @@ use std::io::{Error, ErrorKind, Read};
 use std::str;
 //use std::time::Instant;
 
+const READ_LEN: usize = 0x10;
+
 // TODO: add a trace32 option that auto-formats the same way d.dump in Trace32 looks.
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -49,17 +51,50 @@ fn line_all_zero(raw_line: &[u8]) -> bool {
     sum == 0
 }
 
+// Helper function to print out each line with default formatting.
+fn print_bin(f: &mut File, line: &mut [u8], address: usize) {
+    let mut _is_zero_line_printed = false;
+    let mut _is_skip_line_printed = false;
+
+    f.read_exact(line)
+        .unwrap_or_else(|_| panic!("{}", &format!("Didn't read {} bytes", READ_LEN).to_owned()));
+    let conv_line_as_str = convert_line(line);
+    let _is_line_zero = line_all_zero(line);
+    if !_is_line_zero || !_is_zero_line_printed {
+        // Default print no format string provided
+        let mut new_line = format!("{:08x} ", address);
+        let line_len = line.len();
+        for (_, i) in (0..READ_LEN).enumerate() {
+            if i < line_len {
+                let spaces = if i == 8 { "  " } else { " " };
+                new_line = format! {"{}{}{:02x}", new_line, spaces, TryInto::<u8>::try_into(line[i]).unwrap()};
+            } else {
+                let spaces = if i == 8 { "    " } else { "   " };
+                new_line = format! {"{}{}", new_line, spaces};
+            }
+        }
+        new_line = format!("{}  |{}|", new_line, conv_line_as_str);
+        println!("{}", new_line);
+        if _is_line_zero {
+            _is_zero_line_printed = true;
+            _is_skip_line_printed = false;
+        } else {
+            _is_zero_line_printed = false;
+        }
+    } else if !_is_skip_line_printed {
+        println!("*");
+        _is_skip_line_printed = true;
+    }
+}
+
+// Main function that reads and dumps the conents of the file
 fn hexdump(file: String, file_len: usize, offset: usize) -> io::Result<()> {
     // Open file and read length or default bytes at a time
     let mut f = File::open(file)?;
-    let mut address: u64 = 0x0;
-    let mut i: usize = 0;
-    let mut _remainder = 0;
+    //let mut _remainder = 0;
     let mut rem_printed = false;
-    let mut is_zero_line_printed = false;
-    let mut is_skip_line_printed = false;
-    let mut line: [u8; 0x10] = [0; 0x10];
-    //let mut prev_line: [u8; 0x10] = [0; 0x10];
+    let mut line: [u8; READ_LEN] = [0; READ_LEN];
+    //let mut prev_line: [u8; READ_LEN] = [0; READ_LEN];
 
     if offset >= file_len {
         let custom_error = Error::new(ErrorKind::Other, "offset >= file_len, bailing");
@@ -67,54 +102,29 @@ fn hexdump(file: String, file_len: usize, offset: usize) -> io::Result<()> {
         return Err(custom_error);
     }
 
-    while i < file_len {
-        // TODO: handle case at the end where this might overflow the array bounds...
-        if i + 0x10 > file_len {
-            _remainder = (i + 0x10) - file_len;
+    if offset & 0xF != 0x0 {
+        // We need to align this address to be READ_LEN based for the below algorithm to work.
+    }
+    // TODO: align address to be READ_LEN based
+    let mut address: usize = offset;
+
+    while address < file_len {
+        if file_len < READ_LEN {
+            let mut var_len_line: Vec<u8> = vec![0; file_len];
+            print_bin(&mut f, &mut var_len_line, address);
+            address += file_len;
+        } else if address + READ_LEN > file_len {
+            let mut _remainder = file_len % READ_LEN;
+            let mut var_len_line: Vec<u8> = vec![0; _remainder];
             if !rem_printed {
-                println!("remainder: {}", _remainder);
                 rem_printed = true;
             }
+            print_bin(&mut f, &mut var_len_line, address);
+            address += _remainder;
+        } else {
+            print_bin(&mut f, &mut line, address);
+            address += READ_LEN;
         }
-        f.read_exact(&mut line).expect("Didn't read 0x10 bytes");
-        let conv_line_as_str = convert_line(&line);
-        let _is_line_zero = line_all_zero(&line);
-        if !_is_line_zero || !is_zero_line_printed {
-            // Default print no format string provided
-            let line = format!(
-                    "{:08x}  {:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x}  {:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x}  |{}|",
-                    address,
-                    line[0],
-                    line[1],
-                    line[2],
-                    line[3],
-                    line[4],
-                    line[5],
-                    line[6],
-                    line[7],
-                    line[8],
-                    line[9],
-                    line[10],
-                    line[11],
-                    line[12],
-                    line[13],
-                    line[14],
-                    line[15],
-                    conv_line_as_str
-                );
-            println!("{}", line);
-            if _is_line_zero {
-                is_zero_line_printed = true;
-                is_skip_line_printed = false;
-            } else {
-                is_zero_line_printed = false;
-            }
-        } else if !is_skip_line_printed {
-            println!("*");
-            is_skip_line_printed = true;
-        }
-        address += 0x10;
-        i += 0x10;
     }
     println!("{:08x}", address);
     Ok(())
