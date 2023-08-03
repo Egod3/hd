@@ -5,6 +5,9 @@ use std::io::{Error, ErrorKind, Read};
 use std::str;
 //use std::time::Instant;
 
+#[cfg(test)]
+mod tests;
+
 const READ_LEN: usize = 0x10;
 
 // TODO: add a trace32 option that auto-formats the same way d.dump in Trace32 looks.
@@ -32,7 +35,6 @@ fn convert_line(raw_line: &[u8]) -> String {
     for i in 0..raw_line.len() {
         let raw_char_as_str = str::from_utf8(&raw_line[i..i + 1]);
         let raw_char = raw_line[i];
-        //println!("raw_char_as_str: {}", raw_char_as_str);
         if (0x20..=0x7E).contains(&raw_char) {
             // TODO: Fix this garbage .unwrap() replace with '?'
             conv_line.push_str(raw_char_as_str.unwrap());
@@ -43,42 +45,44 @@ fn convert_line(raw_line: &[u8]) -> String {
     conv_line
 }
 
-fn line_all_zero(raw_line: &[u8]) -> bool {
-    let mut sum: u64 = 0;
-    for i in raw_line {
-        sum += *i as u64;
+// Helper function to see if two buffers equal each other
+fn vecs_match(b1: &[u8], b2: &[u8]) -> bool {
+    for (i, item) in b1.iter().enumerate() {
+        if b2[i] != *item {
+            return false;
+        }
     }
-    sum == 0
+    true
 }
 
 // Helper function to print out each line with default formatting.
 fn print_bin(line: &mut [u8], address: usize) {
-    let conv_line_as_str = convert_line(line);
+    let line_len = line.len();
+    if line_len > READ_LEN {
+        eprintln!("line_len > READ_LEN, quitting print_bin()");
+        return;
+    }
 
     // Default print no format string provided
     let mut new_line = format!("{:08x} ", address);
-    let line_len = line.len();
     for (_, i) in (0..READ_LEN).enumerate() {
         if i < line_len {
             let spaces = if i == 8 { "  " } else { " " };
-            new_line =
-                format! {"{}{}{:02x}", new_line, spaces, TryInto::<u8>::try_into(line[i]).unwrap()};
+            new_line = format! {"{}{}{:02x}", new_line, spaces, line[i]};
         } else {
             let spaces = if i == 8 { "    " } else { "   " };
             new_line = format! {"{}{}", new_line, spaces};
         }
     }
-    new_line = format!("{}  |{}|", new_line, conv_line_as_str);
+    new_line = format!("{}  |{}|", new_line, convert_line(line));
     println!("{}", new_line);
 }
 
 // Main function that reads and dumps the conents of the file
 fn hexdump(file: String, file_len: usize, offset: usize) -> io::Result<()> {
-    // Open file and read length or default bytes at a time
     let mut f = File::open(file)?;
-    //let mut _remainder = 0;
     let mut line: [u8; READ_LEN] = [0; READ_LEN];
-    //let mut prev_line: [u8; READ_LEN] = [0; READ_LEN];
+    let mut _prev_line: [u8; READ_LEN] = [0; READ_LEN];
 
     if offset >= file_len {
         let custom_error = Error::new(ErrorKind::Other, "offset >= file_len, bailing");
@@ -92,7 +96,7 @@ fn hexdump(file: String, file_len: usize, offset: usize) -> io::Result<()> {
     // TODO: align address to be READ_LEN based
     let mut address: usize = offset;
 
-    let mut _is_zero_line_printed = false;
+    let mut _is_same_line_printed = false;
     let mut _is_skip_line_printed = false;
     while address < file_len {
         if file_len < READ_LEN {
@@ -113,20 +117,20 @@ fn hexdump(file: String, file_len: usize, offset: usize) -> io::Result<()> {
             f.read_exact(&mut line).unwrap_or_else(|_| {
                 panic!("{}", &format!("Didn't read {} bytes", READ_LEN).to_owned())
             });
-            let _is_line_zero = line_all_zero(&line);
-            if !_is_line_zero || !_is_zero_line_printed {
-                print_bin(&mut line, address);
-                if _is_line_zero {
-                    _is_zero_line_printed = true;
-                    _is_skip_line_printed = false;
-                } else {
-                    _is_zero_line_printed = false;
-                }
-            } else if !_is_skip_line_printed {
+            let _is_line_same = vecs_match(&line, &_prev_line);
+            if _is_line_same && !_is_skip_line_printed {
                 println!("*");
                 _is_skip_line_printed = true;
+            } else if _is_line_same && _is_skip_line_printed {
+                // do nothing
+            } else {
+                print_bin(&mut line, address);
+                _is_skip_line_printed = false;
             }
             address += READ_LEN;
+            for (i, item) in line.iter().enumerate() {
+                _prev_line[i] = *item;
+            }
         }
     }
     println!("{:08x}", address);
@@ -155,7 +159,6 @@ fn main() {
     let metadata = std::fs::metadata(args.file.clone());
     match metadata {
         Ok(metadata) => {
-            // If length is not provided by the user then use the file len.
             if length == 0 {
                 // TODO: Fix this garbage .unwrap() replace with '?'
                 length = metadata.len().try_into().unwrap();
