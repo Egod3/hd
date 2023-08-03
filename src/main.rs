@@ -1,9 +1,9 @@
 use clap::Parser;
 use std::fs::File;
 use std::io;
-use std::io::Read;
+use std::io::{Error, ErrorKind, Read};
 use std::str;
-use std::time::Instant;
+//use std::time::Instant;
 
 // TODO: add a trace32 option that auto-formats the same way d.dump in Trace32 looks.
 #[derive(Parser)]
@@ -11,7 +11,10 @@ use std::time::Instant;
 struct Args {
     /// Interpret only length bytes of input.
     #[arg(short = 'n', long)]
-    length: Option<u64>,
+    length: Option<usize>,
+    /// Skip offset bytes from the beginning of the input.
+    #[arg(short = 's', long)]
+    offset: Option<usize>,
     /// Two-byte hexadecimal display.  Display the input offset in hexadecimal, followed by eight,
     /// space separated, four column, zero-filled, two-byte quantities of input data, in hexadecimal, per line.
     #[arg(short = 'x', long)]
@@ -46,25 +49,38 @@ fn line_all_zero(raw_line: &[u8]) -> bool {
     sum == 0
 }
 
-fn hexdump(file: String, file_len: usize) -> io::Result<()> {
+fn hexdump(file: String, file_len: usize, offset: usize) -> io::Result<()> {
     // Open file and read length or default bytes at a time
-    //println!("file_len: {}", file_len);
     let mut f = File::open(file)?;
     let mut address: u64 = 0x0;
     let mut i: usize = 0;
+    let mut _remainder = 0;
+    let mut rem_printed = false;
     let mut is_zero_line_printed = false;
     let mut is_skip_line_printed = false;
     let mut line: [u8; 0x10] = [0; 0x10];
     //let mut prev_line: [u8; 0x10] = [0; 0x10];
 
-    // TODO: handle case at the end where this might overflow the array bounds...
+    if offset >= file_len {
+        let custom_error = Error::new(ErrorKind::Other, "offset >= file_len, bailing");
+        eprintln!("offset >= file_len ({} >= {}), bailing", offset, file_len);
+        return Err(custom_error);
+    }
+
     while i < file_len {
-        if i + 0x10 > file_len {}
+        // TODO: handle case at the end where this might overflow the array bounds...
+        if i + 0x10 > file_len {
+            _remainder = (i + 0x10) - file_len;
+            if !rem_printed {
+                println!("remainder: {}", _remainder);
+                rem_printed = true;
+            }
+        }
         f.read_exact(&mut line).expect("Didn't read 0x10 bytes");
-        // Default print no format string provided
         let conv_line_as_str = convert_line(&line);
         let _is_line_zero = line_all_zero(&line);
         if !_is_line_zero || !is_zero_line_printed {
+            // Default print no format string provided
             let line = format!(
                     "{:08x}  {:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x}  {:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x}  |{}|",
                     address,
@@ -86,11 +102,6 @@ fn hexdump(file: String, file_len: usize) -> io::Result<()> {
                     line[15],
                     conv_line_as_str
                 );
-            //let mut line = format!("{:08x}  ", address);
-            //for char in &line[i..i + 16] {
-            //    line = format! {"{} {:02x}", line, char};
-            //}
-            //line = format!("{} |{}|", line, conv_line_as_str);
             println!("{}", line);
             if _is_line_zero {
                 is_zero_line_printed = true;
@@ -105,34 +116,43 @@ fn hexdump(file: String, file_len: usize) -> io::Result<()> {
         address += 0x10;
         i += 0x10;
     }
+    println!("{:08x}", address);
     Ok(())
 }
 
 fn main() {
-    let now = Instant::now();
+    //let now = Instant::now();
     let args = Args::parse();
+    let mut length: usize = 0;
+    let mut bytes_to_skip: usize = 0;
 
-    if let Some(length) = args.length {
-        println!("Value for length:{}", length);
+    if let Some(in_length) = args.length {
+        println!("Value for length:{}", in_length);
+        length = in_length;
+    }
+    if let Some(in_offset) = args.offset {
+        println!("Value for offset:{}", in_offset);
+        bytes_to_skip = in_offset;
     }
     if let Some(hex) = args.hex {
         println!("Value for hex:{hex}");
     }
 
-    let mut _file_len: usize = 0;
-
     // Check that the file exists before we try and open it.
     let metadata = std::fs::metadata(args.file.clone());
     match metadata {
         Ok(metadata) => {
-            // TODO: Fix this garbage .unwrap() replace with '?'
-            _file_len = metadata.len().try_into().unwrap();
+            // If length is not provided by the user then use the file len.
+            if length == 0 {
+                // TODO: Fix this garbage .unwrap() replace with '?'
+                length = metadata.len().try_into().unwrap();
+            }
         }
         Err(_) => {
             eprintln!("file does not exist, exiting.");
             return;
         }
     }
-    let _ = hexdump(args.file, _file_len);
-    println!("Execution time was: {:#?}", now.elapsed());
+    let _ = hexdump(args.file, length, bytes_to_skip);
+    //println!("Execution time was: {:#?}", now.elapsed());
 }
