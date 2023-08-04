@@ -20,16 +20,15 @@ struct Args {
     /// Skip offset bytes from the beginning of the input.
     #[arg(short = 's', long)]
     offset: Option<usize>,
-    /// Two-byte hexadecimal display.  Display the input offset in hexadecimal, followed by eight,
-    /// space separated, four column, zero-filled, two-byte quantities of input data, in hexadecimal, per line.
-    #[arg(short = 'x', long)]
-    hex: Option<bool>,
-    /// For each input file, hexdump sequentially copies the input to standard output,
-    /// transforming the data according to the format strings specified by the -e and
-    /// -f options, in the order that they were specified.
+    /// File to hexdump
     file: String,
+    // Two-byte hexadecimal display.  Display the input offset in hexadecimal, followed by eight,
+    // space separated, four column, zero-filled, two-byte quantities of input data, in hexadecimal, per line.
+    //#[arg(short = 'x', long)]
+    //hex: Option<bool>,
 }
 
+// convert a u8 array into a String, for the right side of the dump
 fn convert_line(raw_line: &[u8]) -> String {
     let mut conv_line: String = Default::default();
     for i in 0..raw_line.len() {
@@ -45,7 +44,7 @@ fn convert_line(raw_line: &[u8]) -> String {
     conv_line
 }
 
-// Helper function to see if two buffers equal each other
+// Function to see if two buffers equal each other
 fn vecs_match(b1: &[u8], b2: &[u8]) -> bool {
     for (i, item) in b1.iter().enumerate() {
         if b2[i] != *item {
@@ -55,7 +54,7 @@ fn vecs_match(b1: &[u8], b2: &[u8]) -> bool {
     true
 }
 
-// Helper function to print out each line with default formatting.
+// Function to print out each line with default formatting.
 fn print_bin(line: &mut [u8], address: usize) {
     let line_len = line.len();
     if line_len > READ_LEN {
@@ -78,16 +77,26 @@ fn print_bin(line: &mut [u8], address: usize) {
     println!("{}", new_line);
 }
 
-// Main function that reads and dumps the conents of the file
-fn hexdump(file: String, file_len: usize, offset: usize) -> io::Result<()> {
-    let mut f = File::open(file)?;
+// Function that opens the file and dumps its content
+fn hexdump(file: String, req_bytes_to_dump: usize, offset: usize) -> io::Result<usize> {
+    let mut f = File::open(&file)?;
     let mut line: [u8; READ_LEN] = [0; READ_LEN];
     let mut _prev_line: [u8; READ_LEN] = [0; READ_LEN];
+    let mut _file_length: usize = std::fs::metadata(file)?.len().try_into().unwrap();
+    let mut bytes_to_dump: usize = req_bytes_to_dump;
 
-    if offset >= file_len {
-        let custom_error = Error::new(ErrorKind::Other, "offset >= file_len, bailing");
-        eprintln!("offset >= file_len ({} >= {}), bailing", offset, file_len);
+    if offset >= req_bytes_to_dump {
+        let custom_error = Error::new(ErrorKind::Other, "offset >= req_bytes_to_dump, bailing");
+        eprintln!(
+            "offset >= req_bytes_to_dump ({} >= {}), bailing",
+            offset, req_bytes_to_dump
+        );
         return Err(custom_error);
+    }
+
+    if req_bytes_to_dump > _file_length {
+        println!("req_bytes_to_dump > _file_length so we are truncating the dump amount");
+        bytes_to_dump = _file_length;
     }
 
     if offset & 0xF != 0x0 {
@@ -97,16 +106,16 @@ fn hexdump(file: String, file_len: usize, offset: usize) -> io::Result<()> {
     let mut address: usize = offset;
 
     let mut _is_skip_line_printed = false;
-    while address < file_len {
-        if file_len < READ_LEN {
-            let mut var_len_line: Vec<u8> = vec![0; file_len];
+    while address < bytes_to_dump {
+        if bytes_to_dump < READ_LEN {
+            let mut var_len_line: Vec<u8> = vec![0; bytes_to_dump];
             f.read_exact(&mut var_len_line).unwrap_or_else(|_| {
                 panic!("{}", &format!("Didn't read {} bytes", READ_LEN).to_owned())
             });
             print_bin(&mut var_len_line, address);
-            address += file_len;
-        } else if address + READ_LEN > file_len {
-            let mut _remainder = file_len % READ_LEN;
+            address += bytes_to_dump;
+        } else if address + READ_LEN > bytes_to_dump {
+            let mut _remainder = bytes_to_dump % READ_LEN;
             let mut var_len_line: Vec<u8> = vec![0; _remainder];
             f.read_exact(&mut var_len_line).unwrap_or_else(|_| {
                 panic!("{}", &format!("Didn't read {} bytes", READ_LEN).to_owned())
@@ -134,13 +143,15 @@ fn hexdump(file: String, file_len: usize, offset: usize) -> io::Result<()> {
         }
     }
     println!("{:08x}", address);
-    Ok(())
+    // Return the bytes dumped wrapped in a Result
+    Ok(address - offset)
 }
 
 fn main() {
     //let now = Instant::now();
     let args = Args::parse();
     let mut length: usize = 0;
+    let mut _file_length: usize = 0;
     let mut bytes_to_skip: usize = 0;
 
     if let Some(in_length) = args.length {
@@ -151,24 +162,27 @@ fn main() {
         println!("Value for offset:{}", in_offset);
         bytes_to_skip = in_offset;
     }
-    if let Some(hex) = args.hex {
-        println!("Value for hex:{hex}");
-    }
+    //if let Some(hex) = args.hex {
+    //    println!("Value for hex:{hex}");
+    //}
 
     // Check that the file exists before we try and open it.
-    let metadata = std::fs::metadata(args.file.clone());
+    let metadata = std::fs::metadata(&args.file);
+    let _result;
     match metadata {
         Ok(metadata) => {
+            // TODO: Fix this garbage .unwrap() replace with '?'
+            _file_length = metadata.len().try_into().unwrap();
             if length == 0 {
-                // TODO: Fix this garbage .unwrap() replace with '?'
-                length = metadata.len().try_into().unwrap();
+                length = _file_length
+            } else if length > _file_length {
+                length = _file_length;
             }
+            _result = hexdump(args.file, length, bytes_to_skip);
         }
         Err(_) => {
             eprintln!("file does not exist, exiting.");
-            return;
         }
     }
-    let _ = hexdump(args.file, length, bytes_to_skip);
-    //println!("Execution time was: {:#?}", now.elapsed());
+    //println!("Execution time: {:#?}", now.elapsed());
 }
