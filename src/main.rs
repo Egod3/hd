@@ -96,14 +96,14 @@ fn hexdump(file: String, file_len: usize, offset: usize) -> io::Result<()> {
     // TODO: align address to be READ_LEN based
     let mut address: usize = offset;
 
-    let mut _is_same_line_printed = false;
     let mut _is_skip_line_printed = false;
     while address < file_len {
         if file_len < READ_LEN {
-            f.read_exact(&mut line).unwrap_or_else(|_| {
+            let mut var_len_line: Vec<u8> = vec![0; file_len];
+            f.read_exact(&mut var_len_line).unwrap_or_else(|_| {
                 panic!("{}", &format!("Didn't read {} bytes", READ_LEN).to_owned())
             });
-            print_bin(&mut line, address);
+            print_bin(&mut var_len_line, address);
             address += file_len;
         } else if address + READ_LEN > file_len {
             let mut _remainder = file_len % READ_LEN;
@@ -121,8 +121,8 @@ fn hexdump(file: String, file_len: usize, offset: usize) -> io::Result<()> {
             if _is_line_same && !_is_skip_line_printed {
                 println!("*");
                 _is_skip_line_printed = true;
+            // This line matched the previous line so skip printing.
             } else if _is_line_same && _is_skip_line_printed {
-                // do nothing
             } else {
                 print_bin(&mut line, address);
                 _is_skip_line_printed = false;

@@ -41,4 +41,71 @@ mod tests {
         let ascii = vecs_match(&b1, &b2);
         assert_eq!(ascii, answer);
     }
+
+    #[test]
+    fn test_hexdump_len() {
+        use crate::hexdump;
+        let f1 = "test0.bin".to_string();
+        let mut len = 10;
+        println!(
+            "hd {} bytes, visually inspect and make sure only {} bytes are printed",
+            len, len
+        );
+        assert_eq!(hexdump(f1.clone(), len, 0).is_ok(), true);
+        len = 20;
+        println!(
+            "hd {} bytes, visually inspect and make sure only {} bytes are printed",
+            len, len
+        );
+        assert_eq!(hexdump(f1.clone(), len, 0).is_ok(), true);
+        len = 40;
+        println!(
+            "hd {} bytes, visually inspect and make sure only {} bytes are printed",
+            len, len
+        );
+        assert_eq!(hexdump(f1.clone(), len, 0).is_ok(), true);
+    }
+
+    // TODO: Get this test to pass.
+    #[test]
+    fn test_hexdump_len_and_off() {
+        use crate::hexdump;
+        let f1 = "test0.bin".to_string();
+        let mut len = 10;
+        println!(
+            "hd {} bytes, visually inspect and make sure only {} bytes are printed",
+            len, len
+        );
+        assert_eq!(hexdump(f1.clone(), len, 5).is_ok(), true);
+        len = 20;
+        println!(
+            "hd {} bytes, visually inspect and make sure only {} bytes are printed",
+            len, len
+        );
+        assert_eq!(hexdump(f1.clone(), len, 1).is_ok(), true);
+        len = 40;
+        println!(
+            "hd {} bytes, visually inspect and make sure only {} bytes are printed",
+            len, len
+        );
+        assert_eq!(hexdump(f1.clone(), len, 14).is_ok(), true);
+    }
+
+    #[test]
+    fn test_hexdump_off_eq_len() {
+        use crate::hexdump;
+        let f1 = "test0.bin".to_string();
+        assert_eq!(hexdump(f1.clone(), 10, 10).is_err(), true);
+        assert_eq!(hexdump(f1.clone(), 20, 20).is_err(), true);
+        assert_eq!(hexdump(f1.clone(), 0, 0).is_err(), true);
+    }
+
+    #[test]
+    fn test_hexdump_off_gt_len() {
+        use crate::hexdump;
+        let f1 = "test0.bin".to_string();
+        assert_eq!(hexdump(f1.clone(), 10, 11).is_err(), true);
+        assert_eq!(hexdump(f1.clone(), 20, 2000).is_err(), true);
+        assert_eq!(hexdump(f1.clone(), 0, 0xa1).is_err(), true);
+    }
 }
