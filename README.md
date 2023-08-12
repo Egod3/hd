@@ -3,22 +3,22 @@ Hexdump written in rust.  This is mainly being done as a learning excercise.
 
 ## TODO 
 
-Add support for -v, which will print repeated lines.
 Add support for different representations of the data (hex, octal, dec, bin).
 Add support for format strings.
 Add support for -n or --length to be 20 or 0x20 (32 decimal) currently only
   20 works.
-Optimize the solution so it is closer to hd in performance.
+Optimize the solution so it is closer to hd (GNU C implementation) in performance.
 
 ## Done
 
+Add support for -s offset to start reading file at provided offset.
+Add support for -v, which will print repeated lines.
 Add tests to test the functionality you have working.  This will help as I add
 new features to be able to have confidence the new code doesn't break anything.
 Add support for skipping duplicate lines.
 Add support for printing unaligned lengths.
 Add support for length.
 Add support to dump bins.
-
 
 ## Basic tests you can run:
 

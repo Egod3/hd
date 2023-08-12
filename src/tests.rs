@@ -43,7 +43,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hexdump_len() {
+    fn test_hd_bytes_to_dump() {
         use crate::hexdump;
         let f1 = "test0.bin".to_string();
         let mut len = 10;
@@ -51,7 +51,7 @@ mod tests {
             "hd {} bytes, visually inspect and make sure only {} bytes are printed",
             len, len
         );
-        let result = hexdump(f1.clone(), len, 0);
+        let result = hexdump(f1.clone(), len, 0, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), len);
         len = 20;
@@ -59,7 +59,7 @@ mod tests {
             "hd {} bytes, visually inspect and make sure only {} bytes are printed",
             len, len
         );
-        let result = hexdump(f1.clone(), len, 0);
+        let result = hexdump(f1.clone(), len, 0, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), len);
         len = 40;
@@ -67,7 +67,7 @@ mod tests {
             "hd {} bytes, visually inspect and make sure only {} bytes are printed",
             len, len
         );
-        let result = hexdump(f1.clone(), len, 0);
+        let result = hexdump(f1.clone(), len, 0, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), len);
         len = 990;
@@ -77,51 +77,80 @@ mod tests {
             MAX_LEN, MAX_LEN
         );
         // Special case where we try and read past the end of the file
-        let result = hexdump(f1.clone(), len, 0);
+        let result = hexdump(f1.clone(), len, 0, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), MAX_LEN);
-    }
-
-    //// TODO: Get this test to pass.
-    //#[test]
-    //fn test_hexdump_len_and_off() {
-    //    use crate::hexdump;
-    //    let f1 = "test0.bin".to_string();
-    //    let mut len = 10;
-    //    println!(
-    //        "hd {} bytes, visually inspect and make sure only {} bytes are printed",
-    //        len, len
-    //    );
-    //    assert_eq!(hexdump(f1.clone(), len, 5).is_ok(), true);
-    //    len = 20;
-    //    println!(
-    //        "hd {} bytes, visually inspect and make sure only {} bytes are printed",
-    //        len, len
-    //    );
-    //    assert_eq!(hexdump(f1.clone(), len, 1).is_ok(), true);
-    //    len = 40;
-    //    println!(
-    //        "hd {} bytes, visually inspect and make sure only {} bytes are printed",
-    //        len, len
-    //    );
-    //    assert_eq!(hexdump(f1.clone(), len, 14).is_ok(), true);
-    //}
-
-    #[test]
-    fn test_hexdump_off_eq_len() {
-        use crate::hexdump;
-        let f1 = "test0.bin".to_string();
-        assert_eq!(hexdump(f1.clone(), 10, 10).is_err(), true);
-        assert_eq!(hexdump(f1.clone(), 20, 20).is_err(), true);
-        assert_eq!(hexdump(f1.clone(), 0, 0).is_err(), true);
+        let f2 = "test1.bin".to_string();
+        len = 0x320;
+        let offset = 0x2e0;
+        println!(
+            "hd {} bytes, visually inspect and make sure lines 300 & 310 are skipped",
+            len
+        );
+        // Special case where we try and read past the end of the file
+        let result = hexdump(f2.clone(), len, offset, false);
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(result.unwrap(), len - offset);
     }
 
     #[test]
-    fn test_hexdump_off_gt_len() {
+    fn test_hd_print_all_lines() {
+        use crate::hexdump;
+        let f1 = "test1.bin".to_string();
+        let mut len = 10;
+        println!(
+            "hd {} bytes, visually inspect and make sure only {} bytes are printed",
+            len, len
+        );
+        let result = hexdump(f1.clone(), len, 0, true);
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(result.unwrap(), len);
+
+        len = 0x320;
+        let offset = 0x2e0;
+        println!(
+            "hd {} bytes, visually inspect and make sure only {} bytes are printed",
+            len, len
+        );
+        let result = hexdump(f1.clone(), len, offset, true);
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(result.unwrap(), len - offset);
+    }
+
+    #[test]
+    fn test_hd_bytes_to_dump_and_offset() {
         use crate::hexdump;
         let f1 = "test0.bin".to_string();
-        assert_eq!(hexdump(f1.clone(), 10, 11).is_err(), true);
-        assert_eq!(hexdump(f1.clone(), 20, 2000).is_err(), true);
-        assert_eq!(hexdump(f1.clone(), 0, 0xa1).is_err(), true);
+        let mut len = 10;
+        let mut offset = 5;
+        println!("hd {} bytes starting at {}", len, offset);
+        assert_eq!(hexdump(f1.clone(), len, offset, false).is_ok(), true);
+        len = 20;
+        offset = 1;
+        println!("hd {} bytes starting at {}", len, offset);
+        assert_eq!(hexdump(f1.clone(), len, offset, false).is_ok(), true);
+        len = 40;
+        offset = 14;
+        println!("hd {} bytes starting at {}", len, offset);
+        assert_eq!(hexdump(f1.clone(), len, offset, false).is_ok(), true);
+    }
+
+    #[test]
+    fn test_hd_offset_eq_bytes_to_dump() {
+        use crate::hexdump;
+        let f1 = "test0.bin".to_string();
+        assert_eq!(hexdump(f1.clone(), 10, 10, false).is_err(), true);
+        assert_eq!(hexdump(f1.clone(), 20, 20, false).is_err(), true);
+        assert_eq!(hexdump(f1.clone(), 0, 0, false).is_err(), true);
+    }
+
+    #[test]
+    fn test_hd_offset_gt_bytes_to_dump() {
+        use crate::hexdump;
+        let f1 = "test0.bin".to_string();
+        assert_eq!(hexdump(f1.clone(), 10, 10, true).is_err(), true);
+        assert_eq!(hexdump(f1.clone(), 10, 11, false).is_err(), true);
+        assert_eq!(hexdump(f1.clone(), 20, 2000, false).is_err(), true);
+        assert_eq!(hexdump(f1.clone(), 0, 0xa1, false).is_err(), true);
     }
 }

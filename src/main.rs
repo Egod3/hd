@@ -1,9 +1,11 @@
 use clap::Parser;
 use std::fs::File;
 use std::io;
+use std::io::Seek;
+use std::io::SeekFrom;
 use std::io::{Error, ErrorKind, Read};
 use std::str;
-//use std::time::Instant;
+use std::time::Instant;
 
 #[cfg(test)]
 mod tests;
@@ -22,6 +24,11 @@ struct Args {
     offset: Option<usize>,
     /// File to hexdump
     file: String,
+    /// Cause hexdump to display all input data. Without the -v option, any
+    /// number of groups of output lines, that are identical, are replaced with
+    /// a line comprised of a single asterisk.
+    #[arg(short = 'v')]
+    print_all_lines: bool,
     // Two-byte hexadecimal display.  Display the input offset in hexadecimal, followed by eight,
     // space separated, four column, zero-filled, two-byte quantities of input data, in hexadecimal, per line.
     //#[arg(short = 'x', long)]
@@ -78,7 +85,12 @@ fn print_bin(line: &mut [u8], address: usize) {
 }
 
 // Function that opens the file and dumps its content
-fn hexdump(file: String, req_bytes_to_dump: usize, offset: usize) -> io::Result<usize> {
+fn hexdump(
+    file: String,
+    req_bytes_to_dump: usize,
+    offset: usize,
+    print_all_lines: bool,
+) -> io::Result<usize> {
     let mut f = File::open(&file)?;
     let mut line: [u8; READ_LEN] = [0; READ_LEN];
     let mut _prev_line: [u8; READ_LEN] = [0; READ_LEN];
@@ -99,11 +111,11 @@ fn hexdump(file: String, req_bytes_to_dump: usize, offset: usize) -> io::Result<
         bytes_to_dump = _file_length;
     }
 
-    if offset & 0xF != 0x0 {
-        // We need to align this address to be READ_LEN based for the below algorithm to work.
-    }
-    // TODO: align address to be READ_LEN based
     let mut address: usize = offset;
+
+    if address != 0x0 {
+        f.seek(SeekFrom::Start(address.try_into().unwrap()))?;
+    }
 
     let mut _is_skip_line_printed = false;
     while address < bytes_to_dump {
@@ -126,19 +138,24 @@ fn hexdump(file: String, req_bytes_to_dump: usize, offset: usize) -> io::Result<
             f.read_exact(&mut line).unwrap_or_else(|_| {
                 panic!("{}", &format!("Didn't read {} bytes", READ_LEN).to_owned())
             });
-            let _is_line_same = vecs_match(&line, &_prev_line);
-            if _is_line_same && !_is_skip_line_printed {
-                println!("*");
-                _is_skip_line_printed = true;
-            // This line matched the previous line so skip printing.
-            } else if _is_line_same && _is_skip_line_printed {
-            } else {
+            if print_all_lines {
+                address += READ_LEN;
                 print_bin(&mut line, address);
-                _is_skip_line_printed = false;
-            }
-            address += READ_LEN;
-            for (i, item) in line.iter().enumerate() {
-                _prev_line[i] = *item;
+            } else {
+                let _is_line_same = vecs_match(&line, &_prev_line);
+                if _is_line_same && !_is_skip_line_printed {
+                    println!("*");
+                    _is_skip_line_printed = true;
+                // This line matched the previous line so skip printing.
+                } else if _is_line_same && _is_skip_line_printed {
+                } else {
+                    print_bin(&mut line, address);
+                    _is_skip_line_printed = false;
+                }
+                address += READ_LEN;
+                for (i, item) in line.iter().enumerate() {
+                    _prev_line[i] = *item;
+                }
             }
         }
     }
@@ -148,11 +165,12 @@ fn hexdump(file: String, req_bytes_to_dump: usize, offset: usize) -> io::Result<
 }
 
 fn main() {
-    //let now = Instant::now();
+    let now = Instant::now();
     let args = Args::parse();
     let mut length: usize = 0;
     let mut _file_length: usize = 0;
     let mut bytes_to_skip: usize = 0;
+    let mut _print_all_lines: bool = true;
 
     if let Some(in_length) = args.length {
         println!("Value for length:{}", in_length);
@@ -162,6 +180,7 @@ fn main() {
         println!("Value for offset:{}", in_offset);
         bytes_to_skip = in_offset;
     }
+    _print_all_lines = args.print_all_lines;
     //if let Some(hex) = args.hex {
     //    println!("Value for hex:{hex}");
     //}
@@ -178,11 +197,11 @@ fn main() {
             } else if length > _file_length {
                 length = _file_length;
             }
-            _result = hexdump(args.file, length, bytes_to_skip);
+            _result = hexdump(args.file, length, bytes_to_skip, _print_all_lines);
         }
         Err(_) => {
             eprintln!("file does not exist, exiting.");
         }
     }
-    //println!("Execution time: {:#?}", now.elapsed());
+    println!("Execution time: {:#?}", now.elapsed());
 }
