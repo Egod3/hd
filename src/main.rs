@@ -36,7 +36,7 @@ struct Args {
 }
 
 // convert a u8 array into a String, for the right side of the dump
-fn convert_line(raw_line: &[u8]) -> String {
+fn convert_to_string(raw_line: &[u8]) -> String {
     let mut conv_line: String = Default::default();
     for i in 0..raw_line.len() {
         let raw_char_as_str = str::from_utf8(&raw_line[i..i + 1]);
@@ -71,17 +71,21 @@ fn print_bin(line: &mut [u8], address: usize) {
 
     // Default print no format string provided
     let mut new_line = format!("{:08x} ", address);
-    for (_, i) in (0..READ_LEN).enumerate() {
-        if i < line_len {
-            let spaces = if i == 8 { "  " } else { " " };
-            new_line = format! {"{}{}{:02x}", new_line, spaces, line[i]};
-        } else {
-            let spaces = if i == 8 { "    " } else { "   " };
-            new_line = format! {"{}{}", new_line, spaces};
+    if line_len > 0 {
+        for (i, _) in (0..READ_LEN).enumerate() {
+            if i < line_len {
+                let spaces = if i == 8 { "  " } else { " " };
+                new_line = format! {"{}{}{:02x}", new_line, spaces, line[i]};
+            } else {
+                let spaces = if i == 8 { "    " } else { "   " };
+                new_line = format! {"{}{}", new_line, spaces};
+            }
         }
+        new_line = format!("{}  |{}|", new_line, convert_to_string(line));
+        println!("{}", new_line);
+    } else {
+        println!("{}", new_line);
     }
-    new_line = format!("{}  |{}|", new_line, convert_line(line));
-    println!("{}", new_line);
 }
 
 // Function that opens the file and dumps its content
@@ -95,51 +99,54 @@ fn hexdump(
     let mut line: [u8; READ_LEN] = [0; READ_LEN];
     let mut _prev_line: [u8; READ_LEN] = [0; READ_LEN];
     let mut _file_length: usize = std::fs::metadata(file)?.len().try_into().unwrap();
-    let mut bytes_to_dump: usize = req_bytes_to_dump;
+    let mut bytes_left_to_dump: usize = req_bytes_to_dump;
+    let mut address: usize = offset;
 
-    if offset >= req_bytes_to_dump {
-        let custom_error = Error::new(ErrorKind::Other, "offset >= req_bytes_to_dump, bailing");
+    if offset > _file_length {
+        let custom_error = Error::new(ErrorKind::Other, "offset > _file_length, bailing");
         eprintln!(
-            "offset >= req_bytes_to_dump ({} >= {}), bailing",
-            offset, req_bytes_to_dump
+            "offset >= _file_length ({} > {}), bailing",
+            offset, _file_length
         );
         return Err(custom_error);
     }
 
-    if req_bytes_to_dump > _file_length {
-        println!("req_bytes_to_dump > _file_length so we are truncating the dump amount");
-        bytes_to_dump = _file_length;
+    if bytes_left_to_dump == 0 {
+        return Ok(0);
     }
 
-    let mut address: usize = offset;
+    if bytes_left_to_dump + offset > _file_length {
+        bytes_left_to_dump = _file_length - offset;
+    }
 
     if address != 0x0 {
         f.seek(SeekFrom::Start(address.try_into().unwrap()))?;
     }
 
     let mut _is_skip_line_printed = false;
-    while address < bytes_to_dump {
-        if bytes_to_dump < READ_LEN {
-            let mut var_len_line: Vec<u8> = vec![0; bytes_to_dump];
+    loop {
+        // Read a subline where bytes_left_to_dump is less than READ_LEN
+        if bytes_left_to_dump < READ_LEN {
+            let mut var_len_line: Vec<u8> = vec![0; bytes_left_to_dump];
             f.read_exact(&mut var_len_line).unwrap_or_else(|_| {
-                panic!("{}", &format!("Didn't read {} bytes", READ_LEN).to_owned())
+                panic!(
+                    "Didn't read {} bytes read {} bytes",
+                    bytes_left_to_dump,
+                    var_len_line.len()
+                )
             });
             print_bin(&mut var_len_line, address);
-            address += bytes_to_dump;
-        } else if address + READ_LEN > bytes_to_dump {
-            let mut _remainder = bytes_to_dump % READ_LEN;
-            let mut var_len_line: Vec<u8> = vec![0; _remainder];
-            f.read_exact(&mut var_len_line).unwrap_or_else(|_| {
-                panic!("{}", &format!("Didn't read {} bytes", READ_LEN).to_owned())
-            });
-            print_bin(&mut var_len_line, address);
-            address += _remainder;
+            address += bytes_left_to_dump;
+            break;
+        // Normal case, read a full READ_LEN line
         } else {
             f.read_exact(&mut line).unwrap_or_else(|_| {
-                panic!("{}", &format!("Didn't read {} bytes", READ_LEN).to_owned())
+                panic!(
+                    "{}",
+                    &format!("Didn't read {} bytes on line {:?}", READ_LEN, line).to_owned()
+                )
             });
             if print_all_lines {
-                address += READ_LEN;
                 print_bin(&mut line, address);
             } else {
                 let _is_line_same = vecs_match(&line, &_prev_line);
@@ -152,14 +159,15 @@ fn hexdump(
                     print_bin(&mut line, address);
                     _is_skip_line_printed = false;
                 }
-                address += READ_LEN;
                 for (i, item) in line.iter().enumerate() {
                     _prev_line[i] = *item;
                 }
             }
+            address += READ_LEN;
+            bytes_left_to_dump -= READ_LEN;
         }
     }
-    println!("{:08x}", address);
+    //println!("{:08x}", address);
     // Return the bytes dumped wrapped in a Result
     Ok(address - offset)
 }
@@ -203,5 +211,7 @@ fn main() {
             eprintln!("file does not exist, exiting.");
         }
     }
-    println!("Execution time: {:#?}", now.elapsed());
+    if args.print_all_lines {
+        println!("Execution time: {:#?}", now.elapsed());
+    }
 }
