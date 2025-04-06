@@ -1,13 +1,14 @@
 [package]
 name = "hd"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 author = "Ezra Godfrey <ezra.godfrey@gmail.com>"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 clap = { version = "4.3.19", features = ["derive"] }
+clap-num = "1.2.0"
 clap_derive = "4.3.12"
 
 [profile.release]

@@ -1,4 +1,5 @@
 use clap::Parser;
+use clap_num::maybe_hex;
 use std::fs::File;
 use std::io;
 use std::io::Seek;
@@ -17,10 +18,10 @@ const READ_LEN: usize = 0x10;
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Interpret only length bytes of input.
-    #[arg(short = 'n', long)]
+    #[arg(short = 'n', long, value_parser=maybe_hex::<usize>)]
     length: Option<usize>,
     /// Skip offset bytes from the beginning of the input.
-    #[arg(short = 's', long)]
+    #[arg(short = 's', long, value_parser=maybe_hex::<usize>)]
     offset: Option<usize>,
     /// File to hexdump
     file: String,
@@ -42,7 +43,7 @@ fn convert_to_string(raw_line: &[u8]) -> String {
         let raw_char_as_str = str::from_utf8(&raw_line[i..i + 1]);
         let raw_char = raw_line[i];
         if (0x20..=0x7E).contains(&raw_char) {
-            // TODO: Fix this garbage .unwrap() replace with '?'
+            // TODO: Fix this .unwrap() replace with '?'
             conv_line.push_str(raw_char_as_str.unwrap());
         } else {
             conv_line.push('.');
@@ -103,9 +104,9 @@ fn hexdump(
     let mut address: usize = offset;
 
     if offset > _file_length {
-        let custom_error = Error::new(ErrorKind::Other, "offset > _file_length, bailing");
+        let custom_error = Error::new(ErrorKind::Other, "offset > _file_length, exiting");
         eprintln!(
-            "offset >= _file_length ({} > {}), bailing",
+            "offset >= _file_length ({} > {}), exiting",
             offset, _file_length
         );
         return Err(custom_error);
@@ -198,7 +199,7 @@ fn main() {
     let _result;
     match metadata {
         Ok(metadata) => {
-            // TODO: Fix this garbage .unwrap() replace with '?'
+            // TODO: Fix this .unwrap() replace with '?'
             _file_length = metadata.len().try_into().unwrap();
             if length == 0 {
                 length = _file_length

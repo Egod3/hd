@@ -20,7 +20,7 @@ Add support for printing unaligned lengths.
 Add support for length.
 Add support to dump bins.
 
-## Basic tests you can run:
+## Basic tests:
 
 # command 1 & command 2 & test command
 cargo run -- ./target/release/hd > hd-rs.release.txt
