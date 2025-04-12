@@ -13,7 +13,6 @@ mod tests;
 
 const READ_LEN: usize = 0x10;
 
-// TODO: add a trace32 option that auto-formats the same way d.dump in Trace32 looks.
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -23,17 +22,19 @@ struct Args {
     /// Skip offset bytes from the beginning of the input.
     #[arg(short = 's', long, value_parser=maybe_hex::<usize>)]
     offset: Option<usize>,
-    /// File to hexdump
+    /// File to hexdump.
     file: String,
     /// Cause hexdump to display all input data. Without the -v option, any
     /// number of groups of output lines, that are identical, are replaced with
     /// a line comprised of a single asterisk.
     #[arg(short = 'v')]
     print_all_lines: bool,
-    // Two-byte hexadecimal display.  Display the input offset in hexadecimal, followed by eight,
-    // space separated, four column, zero-filled, two-byte quantities of input data, in hexadecimal, per line.
-    //#[arg(short = 'x', long)]
-    //hex: Option<bool>,
+    /// Canonical hex+ASCII display.
+    #[arg(short = 'C', long)]
+    canonical: bool,
+    /// two-byte hexadecimal display
+    #[arg(short = 'x', long)]
+    two_bytes_hex: bool,
 }
 
 // convert a u8 array into a String, for the right side of the dump
@@ -63,38 +64,76 @@ fn vecs_match(b1: &[u8], b2: &[u8]) -> bool {
 }
 
 // Function to print out each line with default formatting.
-fn print_bin(line: &mut [u8], address: usize) {
+fn print_bin(line: &mut [u8], address: usize, canonical: bool, two_bytes_hex: bool) {
     let line_len = line.len();
     if line_len > READ_LEN {
         eprintln!("line_len > READ_LEN, quitting print_bin()");
         return;
     }
 
-    // Default print no format string provided
-    let mut new_line = format!("{:08x} ", address);
-    if line_len > 0 {
-        for (i, _) in (0..READ_LEN).enumerate() {
-            if i < line_len {
-                let spaces = if i == 8 { "  " } else { " " };
-                new_line = format! {"{}{}{:02x}", new_line, spaces, line[i]};
+    let mut new_line;
+    // -C canonical format with |ascii| printed to the right of the hex
+    if canonical {
+        new_line = format!("{:08x} ", address);
+        if line_len > 0 {
+            for (i, _) in (0..READ_LEN).enumerate() {
+                if i < line_len {
+                    let spaces = if i == 8 { "  " } else { " " };
+                    new_line = format! {"{}{}{:02x}", new_line, spaces, line[i]};
+                } else {
+                    let spaces = if i == 8 { "    " } else { "   " };
+                    new_line = format! {"{}{}", new_line, spaces};
+                }
+            }
+            new_line = format!("{}  |{}|", new_line, convert_to_string(line));
+            println!("{}", new_line);
+        } else {
+            println!("{}", new_line);
+        }
+    // -x two bytes hexadecimal
+    } else if two_bytes_hex && line_len > 0 {
+        new_line = format!("{:07x}", address);
+        let mut i = 0;
+        while i < READ_LEN {
+            if i < line_len && i + 1 < line_len {
+                let spaces = "    ";
+                new_line = format! {"{}{}{:02x}{:02x}", new_line, spaces, line[i + 1], line[i]};
             } else {
-                let spaces = if i == 8 { "    " } else { "   " };
+                let spaces = if i == 8 { "   " } else { "  " };
                 new_line = format! {"{}{}", new_line, spaces};
             }
+            i += 2;
         }
-        new_line = format!("{}  |{}|", new_line, convert_to_string(line));
+        println!("{}", new_line);
+    // Default print no format string provided
+    } else if line_len > 0 {
+        new_line = format!("{:07x}", address);
+        let mut i = 0;
+        while i < READ_LEN {
+            if i < line_len && i + 1 < line_len {
+                let spaces = " ";
+                new_line = format! {"{}{}{:02x}{:02x}", new_line, spaces, line[i + 1], line[i]};
+            } else {
+                let spaces = if i == 8 { "   " } else { "  " };
+                new_line = format! {"{}{}", new_line, spaces};
+            }
+            i += 2;
+        }
         println!("{}", new_line);
     } else {
+        new_line = format!("{:07x}", address);
         println!("{}", new_line);
     }
 }
 
-// Function that opens the file and dumps its content
+// Open the file and print its content to stdout
 fn hexdump(
     file: String,
     req_bytes_to_dump: usize,
     offset: usize,
     print_all_lines: bool,
+    canonical: bool,
+    two_bytes_hex: bool,
 ) -> io::Result<usize> {
     let mut f = File::open(&file)?;
     let mut line: [u8; READ_LEN] = [0; READ_LEN];
@@ -136,7 +175,7 @@ fn hexdump(
                     var_len_line.len()
                 )
             });
-            print_bin(&mut var_len_line, address);
+            print_bin(&mut var_len_line, address, canonical, two_bytes_hex);
             address += bytes_left_to_dump;
             break;
         // Normal case, read a full READ_LEN line
@@ -148,7 +187,7 @@ fn hexdump(
                 )
             });
             if print_all_lines {
-                print_bin(&mut line, address);
+                print_bin(&mut line, address, canonical, two_bytes_hex);
             } else {
                 let _is_line_same = vecs_match(&line, &_prev_line);
                 if _is_line_same && !_is_skip_line_printed {
@@ -157,7 +196,7 @@ fn hexdump(
                 // This line matched the previous line so skip printing.
                 } else if _is_line_same && _is_skip_line_printed {
                 } else {
-                    print_bin(&mut line, address);
+                    print_bin(&mut line, address, canonical, two_bytes_hex);
                     _is_skip_line_printed = false;
                 }
                 for (i, item) in line.iter().enumerate() {
@@ -168,7 +207,6 @@ fn hexdump(
             bytes_left_to_dump -= READ_LEN;
         }
     }
-    //println!("{:08x}", address);
     // Return the bytes dumped wrapped in a Result
     Ok(address - offset)
 }
@@ -179,7 +217,6 @@ fn main() {
     let mut length: usize = 0;
     let mut _file_length: usize = 0;
     let mut bytes_to_skip: usize = 0;
-    let mut _print_all_lines: bool = true;
 
     if let Some(in_length) = args.length {
         println!("Value for length:{}", in_length);
@@ -189,10 +226,6 @@ fn main() {
         println!("Value for offset:{}", in_offset);
         bytes_to_skip = in_offset;
     }
-    _print_all_lines = args.print_all_lines;
-    //if let Some(hex) = args.hex {
-    //    println!("Value for hex:{hex}");
-    //}
 
     // Check that the file exists before we try and open it.
     let metadata = std::fs::metadata(&args.file);
@@ -206,7 +239,14 @@ fn main() {
             } else if length > _file_length {
                 length = _file_length;
             }
-            _result = hexdump(args.file, length, bytes_to_skip, _print_all_lines);
+            _result = hexdump(
+                args.file,
+                length,
+                bytes_to_skip,
+                args.print_all_lines,
+                args.canonical,
+                args.two_bytes_hex,
+            );
         }
         Err(_) => {
             eprintln!("file does not exist, exiting.");

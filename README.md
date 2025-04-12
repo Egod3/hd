@@ -2,15 +2,13 @@ Hexdump written in rust.  This is mainly being done as a learning excercise.
 ## Hexdump
 
 ## TODO
-
-Add support for different representations of the data (hex, octal, dec, bin).
+Add support for different representations of the data (hex, octal, dec, or ascii).
 Add support for format strings.
-Add support for -n or --length to be 20 or 0x20 (32 decimal) currently only
-  20 works.
 Optimize the solution so it is closer to hd (GNU C implementation) in performance.
 
 ## Done
 
+Add support for -n or --length to be 20 or 0x20 (32 decimal) currently only 20 works.
 Add support for -s offset to start reading file at provided offset.
 Add support for -v, which will print repeated lines.
 Add tests to test the functionality you have working.  This will help as I add
@@ -23,12 +21,13 @@ Add support to dump bins.
 ## Basic tests:
 
 # command 1 & command 2 & test command
-cargo run -- ./target/release/hd > hd-rs.release.txt
-hd ./target/release/hd > hd.release.txt
-diff hd.release.txt hd-rs.release.txt
+./target/release/hd -C ./target/release/hd > hd-rs.release.c.txt && hd ./target/release/hd > hd.release.c.txt && diff hd.release.c.txt hd-rs.release.c.txt --ignore-trailing-space
+
+./target/release/hd ./target/release/hd > hd-rs.release.txt && hexdump ./target/release/hd > hd.release.txt && diff hd.release.txt hd-rs.release.txt; result=$?; if [[ $result = 0 ]];then  echo "Test Passed"; else echo "Test Failed";  fi;
 
 # command 1 & command 2 & test command
-cargo run -- test0.bin > hd-rs.test0.txt && hd test0.bin > hd.test0.txt && diff hd.test0.txt hd-rs.test0.txt --ignore-trailing-space
+./target/release/hd -C test0.bin > hd-rs.test0.c.txt && hd test0.bin > hd.test0.c.txt && diff hd.test0.c.txt hd-rs.test0.c.txt --ignore-trailing-space
+./target/release/hd test0.bin > hd-rs.test0.txt && hexdump test0.bin > hd.test0.txt && diff hd.test0.txt hd-rs.test0.txt --ignore-trailing-space
 
 # Cargo tests
 cargo test -- --show-output

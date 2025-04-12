@@ -54,25 +54,34 @@ mod tests {
     fn test_hd_offset_gt_bytes_to_dump_one() {
         use crate::hexdump;
         let f1 = "test0.bin".to_string();
-        assert_eq!(hexdump(f1.clone(), 10, 10, true).is_ok(), true);
+        assert_eq!(hexdump(f1.clone(), 10, 10, true, true, false).is_ok(), true);
     }
     #[test]
     fn test_hd_offset_gt_bytes_to_dump_two() {
         use crate::hexdump;
         let f1 = "test0.bin".to_string();
-        assert_eq!(hexdump(f1.clone(), 10, 11, false).is_ok(), true);
+        assert_eq!(
+            hexdump(f1.clone(), 10, 11, false, true, false).is_ok(),
+            true,
+        );
     }
     #[test]
     fn test_hd_offset_gt_bytes_to_dump_three() {
         use crate::hexdump;
         let f1 = "test0.bin".to_string();
-        assert_eq!(hexdump(f1.clone(), 20, 2000, false).is_err(), true);
+        assert_eq!(
+            hexdump(f1.clone(), 20, 2000, false, true, false).is_err(),
+            true,
+        );
     }
     #[test]
     fn test_hd_offset_gt_bytes_to_dump_four() {
         use crate::hexdump;
         let f1 = "test0.bin".to_string();
-        assert_eq!(hexdump(f1.clone(), 0, 0xa1, false).is_ok(), true);
+        assert_eq!(
+            hexdump(f1.clone(), 0, 0xa1, false, true, false).is_ok(),
+            true,
+        );
     }
 
     #[test]
@@ -84,7 +93,7 @@ mod tests {
             "hd {} bytes, visually inspect and make sure only {} bytes are printed",
             bytes_to_dump, bytes_to_dump
         );
-        let result = hexdump(f1.clone(), bytes_to_dump, 0, false);
+        let result = hexdump(f1.clone(), bytes_to_dump, 0, false, true, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), bytes_to_dump);
     }
@@ -97,7 +106,7 @@ mod tests {
             "hd {} bytes, visually inspect and make sure only {} bytes are printed",
             bytes_to_dump, bytes_to_dump
         );
-        let result = hexdump(f1.clone(), bytes_to_dump, 0, false);
+        let result = hexdump(f1.clone(), bytes_to_dump, 0, false, true, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), bytes_to_dump);
     }
@@ -118,7 +127,7 @@ mod tests {
             "hd {} bytes, file length {} make sure {} lines are skipped and {} bytes are dumped",
             bytes_to_dump, _file_length, offset, min_bytes
         );
-        let result = hexdump(f1.clone(), bytes_to_dump, 0, false);
+        let result = hexdump(f1.clone(), bytes_to_dump, 0, false, true, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), min_bytes);
     }
@@ -133,7 +142,7 @@ mod tests {
             MAX_BYTES_TO_DUMP, MAX_BYTES_TO_DUMP
         );
         // Special case where we try and read past the end of the file
-        let result = hexdump(f1.clone(), bytes_to_dump, 0, false);
+        let result = hexdump(f1.clone(), bytes_to_dump, 0, false, true, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), MAX_BYTES_TO_DUMP);
     }
@@ -155,7 +164,7 @@ mod tests {
             bytes_to_dump, _file_length, offset, min_bytes
         );
         // Special case where we try and read past the end of the file
-        let result = hexdump(f2.clone(), bytes_to_dump, offset, false);
+        let result = hexdump(f2.clone(), bytes_to_dump, offset, false, true, false);
         assert_eq!(result.is_ok(), true);
         // Only read until the end of file.
         assert_eq!(result.unwrap(), min_bytes);
@@ -170,7 +179,7 @@ mod tests {
             "hd {} bytes, visually inspect and make sure only {} bytes are printed",
             bytes_to_dump, bytes_to_dump
         );
-        let result = hexdump(f1.clone(), bytes_to_dump, 0, true);
+        let result = hexdump(f1.clone(), bytes_to_dump, 0, true, true, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), bytes_to_dump);
     }
@@ -185,7 +194,7 @@ mod tests {
             "hd {} bytes, visually inspect and make sure only {} bytes are printed",
             bytes_to_dump, bytes_to_dump
         );
-        let result = hexdump(f1.clone(), bytes_to_dump, offset, true);
+        let result = hexdump(f1.clone(), bytes_to_dump, offset, true, true, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), bytes_to_dump);
     }
@@ -208,7 +217,7 @@ mod tests {
             "hd {} bytes, file length {} make sure {} lines are skipped and {} bytes are dumped",
             bytes_to_dump, _file_length, offset, min_bytes
         );
-        let result = hexdump(f1.clone(), bytes_to_dump, offset, true);
+        let result = hexdump(f1.clone(), bytes_to_dump, offset, true, true, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), min_bytes);
     }
@@ -220,7 +229,7 @@ mod tests {
         let bytes_to_dump = 25;
         let offset = 0;
         println!("hd {} bytes starting at {}", bytes_to_dump, offset);
-        let result = hexdump(f1.clone(), bytes_to_dump, offset, false);
+        let result = hexdump(f1.clone(), bytes_to_dump, offset, false, true, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), bytes_to_dump);
     }
@@ -232,7 +241,7 @@ mod tests {
         let bytes_to_dump = 10;
         let offset = 5;
         println!("hd {} bytes starting at {}", bytes_to_dump, offset);
-        let result = hexdump(f1.clone(), bytes_to_dump, offset, false);
+        let result = hexdump(f1.clone(), bytes_to_dump, offset, false, true, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), bytes_to_dump);
     }
@@ -244,7 +253,7 @@ mod tests {
         let bytes_to_dump = 500;
         let offset = 0;
         println!("hd {} bytes starting at {}", bytes_to_dump, offset);
-        let result = hexdump(f1.clone(), bytes_to_dump, offset, false);
+        let result = hexdump(f1.clone(), bytes_to_dump, offset, false, true, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), bytes_to_dump);
     }
@@ -256,7 +265,7 @@ mod tests {
         let bytes_to_dump = 18;
         let offset = 1;
         println!("hd {} bytes starting at {}", bytes_to_dump, offset);
-        let result = hexdump(f1.clone(), bytes_to_dump, offset, false);
+        let result = hexdump(f1.clone(), bytes_to_dump, offset, false, true, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), bytes_to_dump);
     }
@@ -268,7 +277,7 @@ mod tests {
         let bytes_to_dump = 240;
         let offset = 111;
         println!("hd {} bytes starting at {}", bytes_to_dump, offset);
-        let result = hexdump(f1.clone(), bytes_to_dump, offset, false);
+        let result = hexdump(f1.clone(), bytes_to_dump, offset, false, true, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), bytes_to_dump);
     }
@@ -280,7 +289,7 @@ mod tests {
         let bytes_to_dump = 93;
         let offset = 9;
         println!("hd {} bytes starting at {}", bytes_to_dump, offset);
-        let result = hexdump(f1.clone(), bytes_to_dump, offset, false);
+        let result = hexdump(f1.clone(), bytes_to_dump, offset, false, true, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), bytes_to_dump);
     }
@@ -292,7 +301,7 @@ mod tests {
         let bytes_to_dump = 9;
         let offset = 16;
         println!("hd {} bytes starting at {}", bytes_to_dump, offset);
-        let result = hexdump(f1.clone(), bytes_to_dump, offset, false);
+        let result = hexdump(f1.clone(), bytes_to_dump, offset, false, true, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), bytes_to_dump);
     }
@@ -304,7 +313,7 @@ mod tests {
         let bytes_to_dump = 40;
         let offset = 16;
         println!("hd {} bytes starting at {}", bytes_to_dump, offset);
-        let result = hexdump(f1.clone(), bytes_to_dump, offset, false);
+        let result = hexdump(f1.clone(), bytes_to_dump, offset, false, true, false);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), bytes_to_dump);
     }
@@ -316,8 +325,36 @@ mod tests {
         let bytes_to_dump = 32;
         let offset = 14;
         println!("hd {} bytes starting at {}", bytes_to_dump, offset);
-        let result = hexdump(f1.clone(), bytes_to_dump, offset, false);
+        let result = hexdump(f1.clone(), bytes_to_dump, offset, true, false, true);
         assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap(), bytes_to_dump);
+    }
+
+    #[test]
+    fn test_hd_bytes_to_dump_and_offset_ten() {
+        use crate::hexdump;
+        let f1 = "test0.bin".to_string();
+        let bytes_to_dump = 93;
+        let offset = 9;
+        println!("hd {} bytes starting at {}", bytes_to_dump, offset);
+        let result = hexdump(f1.clone(), bytes_to_dump, offset, false, false, true);
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(result.unwrap(), bytes_to_dump);
+    }
+
+    #[test]
+    fn test_hd_against_hexdump_from_gnu_one() {
+        println!("Run this command:");
+        println!(
+            "    ./target/release/hd -C ./target/release/hd > hd-rs.rel.c.txt && hd ./target/release/hd > hd.rel.c.txt && diff hd.rel.c.txt hd-rs.rel.c.txt --ignore-trailing-space; result=$?; if [[ $result = 0 ]];then  echo \"Test Passed\"; else echo \"Test Failed\";  fi;"
+        );
+    }
+
+    #[test]
+    fn test_hd_against_hexdump_from_gnu_two() {
+        println!("Run this command:");
+        println!(
+            "    ./target/release/hd ./target/release/hd > hd-rs.rel.txt && hexdump ./target/release/hd > hd.rel.txt && diff hd.rel.txt hd-rs.rel.txt; result=$?; if [[ $result = 0 ]];then  echo \"Test Passed\"; else echo \"Test Failed\";  fi;"
+        );
     }
 }
