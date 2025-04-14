@@ -5,6 +5,7 @@ use std::io;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::{Error, ErrorKind, Read};
+use std::path::Path;
 use std::str;
 use std::time::Instant;
 
@@ -13,25 +14,48 @@ mod tests;
 
 const READ_LEN: usize = 0x10;
 
+#[derive(Clone, Debug)]
+struct HdOptions {
+    canonical: bool,
+    one_byte_char: bool,
+    one_byte_octal: bool,
+    print_all_lines: bool,
+    two_bytes_dec: bool,
+    two_bytes_octal: bool,
+    two_bytes_hex: bool,
+}
+
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Interpret only length bytes of input.
+    /// Interpret only length bytes of input
     #[arg(short = 'n', long, value_parser=maybe_hex::<usize>)]
     length: Option<usize>,
-    /// Skip offset bytes from the beginning of the input.
+    /// Skip offset bytes from the beginning of the input
     #[arg(short = 's', long, value_parser=maybe_hex::<usize>)]
     offset: Option<usize>,
-    /// File to hexdump.
+    /// File to hexdump
     file: String,
     /// Cause hexdump to display all input data. Without the -v option, any
     /// number of groups of output lines, that are identical, are replaced with
-    /// a line comprised of a single asterisk.
+    /// a line comprised of a single asterisk
     #[arg(short = 'v')]
     print_all_lines: bool,
-    /// Canonical hex+ASCII display.
+    /// Canonical hex+ASCII display
     #[arg(short = 'C', long)]
     canonical: bool,
+    /// one-byte characther display
+    #[arg(short = 'c', long)]
+    one_byte_char: bool,
+    /// one-byte octal display
+    #[arg(short = 'b', long)]
+    one_byte_octal: bool,
+    /// two-bytes decimal display
+    #[arg(short = 'd', long)]
+    two_bytes_dec: bool,
+    /// two-bytes octal display
+    #[arg(short = 'o', long)]
+    two_bytes_octal: bool,
     /// two-byte hexadecimal display
     #[arg(short = 'x', long)]
     two_bytes_hex: bool,
@@ -63,17 +87,17 @@ fn vecs_match(b1: &[u8], b2: &[u8]) -> bool {
     true
 }
 
-// Function to print out each line with default formatting.
-fn print_bin(line: &mut [u8], address: usize, canonical: bool, two_bytes_hex: bool) {
+// Function to print out each line
+fn print_bin(line: &mut [u8], address: usize, options: &HdOptions) -> bool {
     let line_len = line.len();
     if line_len > READ_LEN {
         eprintln!("line_len > READ_LEN, quitting print_bin()");
-        return;
+        return false;
     }
 
     let mut new_line;
     // -C canonical format with |ascii| printed to the right of the hex
-    if canonical {
+    if options.canonical {
         new_line = format!("{:08x} ", address);
         if line_len > 0 {
             for (i, _) in (0..READ_LEN).enumerate() {
@@ -91,7 +115,7 @@ fn print_bin(line: &mut [u8], address: usize, canonical: bool, two_bytes_hex: bo
             println!("{}", new_line);
         }
     // -x two bytes hexadecimal
-    } else if two_bytes_hex && line_len > 0 {
+    } else if options.two_bytes_hex && line_len > 0 {
         new_line = format!("{:07x}", address);
         let mut i = 0;
         while i < READ_LEN {
@@ -105,7 +129,136 @@ fn print_bin(line: &mut [u8], address: usize, canonical: bool, two_bytes_hex: bo
             i += 2;
         }
         println!("{}", new_line);
-    // Default print no format string provided
+    // -b one byte octal
+    } else if options.one_byte_octal && line_len > 0 {
+        new_line = format!("{:07x}", address);
+        let mut i = 0;
+        while i < READ_LEN {
+            if i < line_len {
+                let spaces = " ";
+                new_line = format! {"{}{}{:03o}", new_line, spaces, line[i]};
+            } else {
+                let spaces = if i == 8 { "   " } else { "  " };
+                new_line = format! {"{}{}", new_line, spaces};
+            }
+            i += 1;
+        }
+        println!("{}", new_line);
+    // -o two bytes octal
+    } else if options.two_bytes_octal && line_len > 0 {
+        new_line = format!("{:07x}", address);
+        let mut i = 0;
+        while i < READ_LEN {
+            if i < line_len && i + 1 < line_len {
+                let spaces = "  ";
+                let val: u16 = (line[i + 1] as u16) << 8 & 0xFF00 | line[i] as u16;
+                new_line = format! {"{}{}{:06o}", new_line, spaces, val};
+            } else {
+                let spaces = if i == 8 { "   " } else { "  " };
+                new_line = format! {"{}{}", new_line, spaces};
+            }
+            i += 2;
+        }
+        println!("{}", new_line);
+    // -d two bytes decimal
+    } else if options.two_bytes_dec && line_len > 0 {
+        new_line = format!("{:07x}", address);
+        let mut i = 0;
+        while i < READ_LEN {
+            if i < line_len && i + 1 < line_len {
+                let spaces = "   ";
+                let val: u16 = (line[i + 1] as u16) << 8 & 0xFF00 | line[i] as u16;
+                new_line = format! {"{}{}{:05}", new_line, spaces, val};
+            } else {
+                let spaces = if i == 8 { "   " } else { "  " };
+                new_line = format! {"{}{}", new_line, spaces};
+            }
+            i += 2;
+        }
+        println!("{}", new_line);
+        // -c one byte char
+    } else if options.one_byte_char && line_len > 0 {
+        new_line = format!("{:07x}", address);
+        let mut i = 0;
+        while i < READ_LEN {
+            if i < line_len {
+                if line[i] == 0 {
+                    let spaces = "  ";
+                    new_line = format! {"{}{}\\0", new_line, spaces};
+                } else if line[i] == 7 {
+                    let spaces = "  ";
+                    new_line = format! {"{}{}\\a", new_line, spaces};
+                } else if line[i] == 8 {
+                    let spaces = "  ";
+                    new_line = format! {"{}{}\\b", new_line, spaces};
+                } else if line[i] == 9 {
+                    let spaces = "  ";
+                    new_line = format! {"{}{}\\t", new_line, spaces};
+                } else if line[i] == 10 {
+                    let spaces = "  ";
+                    new_line = format! {"{}{}\\n", new_line, spaces};
+                } else if line[i] == 11 {
+                    let spaces = "  ";
+                    new_line = format! {"{}{}\\v", new_line, spaces};
+                } else if line[i] == 12 {
+                    let spaces = "  ";
+                    new_line = format! {"{}{}\\f", new_line, spaces};
+                } else if line[i] == 13 {
+                    let spaces = "  ";
+                    new_line = format! {"{}{}\\r", new_line, spaces};
+                } else if line[i] == 123 {
+                    let spaces = "   ";
+                    new_line = format! {"{}{}{{", new_line, spaces};
+                } else if line[i] == 124 {
+                    let spaces = "   ";
+                    new_line = format! {"{}{}|", new_line, spaces};
+                } else if line[i] == 125 {
+                    let spaces = "   ";
+                    new_line = format! {"{}{}}}", new_line, spaces};
+                } else if line[i] == 126 {
+                    let spaces = "   ";
+                    new_line = format! {"{}{}~", new_line, spaces};
+                } else if line[i] == 1
+                    || line[i] == 2
+                    || line[i] == 3
+                    || line[i] == 4
+                    || line[i] == 5
+                    || line[i] == 6
+                    || line[i] == 14
+                    || line[i] == 15
+                    || line[i] == 16
+                    || line[i] == 17
+                    || line[i] == 18
+                    || line[i] == 19
+                    || line[i] == 20
+                    || line[i] == 21
+                    || line[i] == 22
+                    || line[i] == 23
+                    || line[i] == 24
+                    || line[i] == 25
+                    || line[i] == 26
+                    || line[i] == 27
+                    || line[i] == 28
+                    || line[i] == 29
+                    || line[i] == 30
+                    || line[i] == 31
+                    || line[i] > 126
+                {
+                    let spaces = " ";
+                    new_line = format! {"{}{}{:03o}", new_line, spaces, line[i]};
+                } else if line[i] < 123 {
+                    let spaces = "   ";
+                    let char = char::from(line[i]);
+                    new_line = format! {"{}{}{}", new_line, spaces, char};
+                }
+            } else {
+                let spaces = if i == 8 { "    " } else { "   " };
+                new_line = format! {"{}{}", new_line, spaces};
+            }
+            i += 1;
+        }
+        println!("{}", new_line);
+        // Default print no format string provided
     } else if line_len > 0 {
         new_line = format!("{:07x}", address);
         let mut i = 0;
@@ -124,6 +277,7 @@ fn print_bin(line: &mut [u8], address: usize, canonical: bool, two_bytes_hex: bo
         new_line = format!("{:07x}", address);
         println!("{}", new_line);
     }
+    true
 }
 
 // Open the file and print its content to stdout
@@ -131,11 +285,16 @@ fn hexdump(
     file: String,
     req_bytes_to_dump: usize,
     offset: usize,
-    print_all_lines: bool,
-    canonical: bool,
-    two_bytes_hex: bool,
+    options: &HdOptions,
 ) -> io::Result<usize> {
+    let path = Path::new(&file);
+    if !path.exists() {
+        let custom_error = Error::new(ErrorKind::Other, "Path does not exist, exiting");
+        eprintln!("Path does not exist, exiting",);
+        return Err(custom_error);
+    }
     let mut f = File::open(&file)?;
+
     let mut line: [u8; READ_LEN] = [0; READ_LEN];
     let mut _prev_line: [u8; READ_LEN] = [0; READ_LEN];
     let mut _file_length: usize = std::fs::metadata(file)?.len().try_into().unwrap();
@@ -175,7 +334,12 @@ fn hexdump(
                     var_len_line.len()
                 )
             });
-            print_bin(&mut var_len_line, address, canonical, two_bytes_hex);
+            let status = print_bin(&mut var_len_line, address, options);
+            if !status {
+                let custom_error = Error::new(ErrorKind::Other, "print_bin failed, exiting");
+                eprintln!("print_bin failed, exiting",);
+                return Err(custom_error);
+            }
             address += bytes_left_to_dump;
             break;
         // Normal case, read a full READ_LEN line
@@ -186,8 +350,13 @@ fn hexdump(
                     &format!("Didn't read {} bytes on line {:?}", READ_LEN, line).to_owned()
                 )
             });
-            if print_all_lines {
-                print_bin(&mut line, address, canonical, two_bytes_hex);
+            if options.print_all_lines {
+                let status = print_bin(&mut line, address, options);
+                if !status {
+                    let custom_error = Error::new(ErrorKind::Other, "print_bin failed, exiting");
+                    eprintln!("print_bin failed, exiting",);
+                    return Err(custom_error);
+                }
             } else {
                 let _is_line_same = vecs_match(&line, &_prev_line);
                 if _is_line_same && !_is_skip_line_printed {
@@ -196,7 +365,13 @@ fn hexdump(
                 // This line matched the previous line so skip printing.
                 } else if _is_line_same && _is_skip_line_printed {
                 } else {
-                    print_bin(&mut line, address, canonical, two_bytes_hex);
+                    let status = print_bin(&mut line, address, options);
+                    if !status {
+                        let custom_error =
+                            Error::new(ErrorKind::Other, "print_bin failed, exiting");
+                        eprintln!("print_bin failed, exiting",);
+                        return Err(custom_error);
+                    }
                     _is_skip_line_printed = false;
                 }
                 for (i, item) in line.iter().enumerate() {
@@ -226,6 +401,15 @@ fn main() {
         println!("Value for offset:{}", in_offset);
         bytes_to_skip = in_offset;
     }
+    let opt: HdOptions = HdOptions {
+        canonical: args.canonical,
+        one_byte_char: args.one_byte_char,
+        one_byte_octal: args.one_byte_octal,
+        print_all_lines: args.print_all_lines,
+        two_bytes_dec: args.two_bytes_dec,
+        two_bytes_octal: args.two_bytes_octal,
+        two_bytes_hex: args.two_bytes_hex,
+    };
 
     // Check that the file exists before we try and open it.
     let metadata = std::fs::metadata(&args.file);
@@ -239,14 +423,7 @@ fn main() {
             } else if length > _file_length {
                 length = _file_length;
             }
-            _result = hexdump(
-                args.file,
-                length,
-                bytes_to_skip,
-                args.print_all_lines,
-                args.canonical,
-                args.two_bytes_hex,
-            );
+            _result = hexdump(args.file, length, bytes_to_skip, &opt);
         }
         Err(_) => {
             eprintln!("file does not exist, exiting.");

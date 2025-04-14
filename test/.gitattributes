@@ -1,0 +1,2 @@
+test0.bin filter=lfs diff=lfs merge=lfs -text
+test1.bin filter=lfs diff=lfs merge=lfs -text
