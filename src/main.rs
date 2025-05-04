@@ -1,3 +1,4 @@
+//! hd is a hexdump clone written in Rust
 use clap::Parser;
 use clap_num::maybe_hex;
 use std::fs::File;
@@ -12,14 +13,15 @@ use std::time::Instant;
 #[cfg(test)]
 mod tests;
 
+/// READ_LEN constant used to check bounds and setup read buffers
 const READ_LEN: usize = 0x10;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct HdOptions {
     canonical: bool,
     one_byte_char: bool,
     one_byte_octal: bool,
-    print_all_lines: bool,
+    no_squeezing: bool,
     two_bytes_dec: bool,
     two_bytes_octal: bool,
     two_bytes_hex: bool,
@@ -28,28 +30,15 @@ struct HdOptions {
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Interpret only length bytes of input
-    #[arg(short = 'n', long, value_parser=maybe_hex::<usize>)]
-    length: Option<usize>,
-    /// Skip offset bytes from the beginning of the input
-    #[arg(short = 's', long, value_parser=maybe_hex::<usize>)]
-    offset: Option<usize>,
-    /// File to hexdump
-    file: String,
-    /// Cause hexdump to display all input data. Without the -v option, any
-    /// number of groups of output lines, that are identical, are replaced with
-    /// a line comprised of a single asterisk
-    #[arg(short = 'v')]
-    print_all_lines: bool,
-    /// Canonical hex+ASCII display
-    #[arg(short = 'C', long)]
-    canonical: bool,
-    /// one-byte characther display
-    #[arg(short = 'c', long)]
-    one_byte_char: bool,
     /// one-byte octal display
     #[arg(short = 'b', long)]
     one_byte_octal: bool,
+    /// one-byte character display
+    #[arg(short = 'c', long)]
+    one_byte_char: bool,
+    /// canonical hex+ASCII display
+    #[arg(short = 'C', long)]
+    canonical: bool,
     /// two-bytes decimal display
     #[arg(short = 'd', long)]
     two_bytes_dec: bool,
@@ -59,9 +48,25 @@ struct Args {
     /// two-byte hexadecimal display
     #[arg(short = 'x', long)]
     two_bytes_hex: bool,
+    /// interpret only length bytes of input
+    #[arg(short = 'n', long, value_parser=maybe_hex::<usize>)]
+    length: Option<usize>,
+    /// skip offset bytes from the beginning of the input
+    #[arg(short = 's', long, value_parser=maybe_hex::<usize>)]
+    skip: Option<usize>,
+    /// file to hexdump
+    file: String,
+    /// output identical lines
+    #[arg(short = 'v', long)]
+    no_squeezing: bool,
 }
 
-// convert a u8 array into a String, for the right side of the dump
+/// Convert a u8 array into a String, for the right side of the dump w/ -C
+///
+/// Args:
+///   raw_line - The raw line to convert to a string
+/// Return:
+///   conv_line - The line as an ascii formatted string
 fn convert_to_string(raw_line: &[u8]) -> String {
     let mut conv_line: String = Default::default();
     for i in 0..raw_line.len() {
@@ -77,7 +82,13 @@ fn convert_to_string(raw_line: &[u8]) -> String {
     conv_line
 }
 
-// Function to see if two buffers equal each other
+/// Check to see if two buffers equal each other
+///
+/// Args:
+///   b1 - buffer one
+///   b2 - buffer two
+/// Return:
+///   true if the buffers match, false otherwise
 fn vecs_match(b1: &[u8], b2: &[u8]) -> bool {
     for (i, item) in b1.iter().enumerate() {
         if b2[i] != *item {
@@ -87,7 +98,96 @@ fn vecs_match(b1: &[u8], b2: &[u8]) -> bool {
     true
 }
 
-// Function to print out each line
+/// Handle formatting for the "one-byte char" or -c format option
+///
+/// Args:
+///   new_line: &String - The start of the format line
+///   line: &[u8] - The line to be hexdumped.
+///   i: usize - The index into line
+/// Return:
+///   fmt_line: String - The fmt_line to display
+fn format_one_byte_char(new_line: &String, line: &[u8], i: usize) -> String {
+    let mut fmt_line = String::new();
+    if line[i] == 0 {
+        let spaces = "  ";
+        fmt_line = format! {"{}{}\\0", new_line, spaces};
+    } else if line[i] == 7 {
+        let spaces = "  ";
+        fmt_line = format! {"{}{}\\a", new_line, spaces};
+    } else if line[i] == 8 {
+        let spaces = "  ";
+        fmt_line = format! {"{}{}\\b", new_line, spaces};
+    } else if line[i] == 9 {
+        let spaces = "  ";
+        fmt_line = format! {"{}{}\\t", new_line, spaces};
+    } else if line[i] == 10 {
+        let spaces = "  ";
+        fmt_line = format! {"{}{}\\n", new_line, spaces};
+    } else if line[i] == 11 {
+        let spaces = "  ";
+        fmt_line = format! {"{}{}\\v", new_line, spaces};
+    } else if line[i] == 12 {
+        let spaces = "  ";
+        fmt_line = format! {"{}{}\\f", new_line, spaces};
+    } else if line[i] == 13 {
+        let spaces = "  ";
+        fmt_line = format! {"{}{}\\r", new_line, spaces};
+    } else if line[i] == 123 {
+        let spaces = "   ";
+        fmt_line = format! {"{}{}{{", new_line, spaces};
+    } else if line[i] == 124 {
+        let spaces = "   ";
+        fmt_line = format! {"{}{}|", new_line, spaces};
+    } else if line[i] == 125 {
+        let spaces = "   ";
+        fmt_line = format! {"{}{}}}", new_line, spaces};
+    } else if line[i] == 126 {
+        let spaces = "   ";
+        fmt_line = format! {"{}{}~", new_line, spaces};
+    } else if line[i] == 1
+        || line[i] == 2
+        || line[i] == 3
+        || line[i] == 4
+        || line[i] == 5
+        || line[i] == 6
+        || line[i] == 14
+        || line[i] == 15
+        || line[i] == 16
+        || line[i] == 17
+        || line[i] == 18
+        || line[i] == 19
+        || line[i] == 20
+        || line[i] == 21
+        || line[i] == 22
+        || line[i] == 23
+        || line[i] == 24
+        || line[i] == 25
+        || line[i] == 26
+        || line[i] == 27
+        || line[i] == 28
+        || line[i] == 29
+        || line[i] == 30
+        || line[i] == 31
+        || line[i] > 126
+    {
+        let spaces = " ";
+        fmt_line = format! {"{}{}{:03o}", new_line, spaces, line[i]};
+    } else if line[i] < 123 {
+        let spaces = "   ";
+        let char = char::from(line[i]);
+        fmt_line = format! {"{}{}{}", new_line, spaces, char};
+    }
+    fmt_line
+}
+
+/// Function to print out each line
+///
+/// Args:
+///   line - The line to hexdump
+///   address - The address to print on the left side
+///   option - The options passed in
+/// Return:
+///   true if the line is printed, false if line_len > READ_LEN
 fn print_bin(line: &mut [u8], address: usize, options: &HdOptions) -> bool {
     let line_len = line.len();
     if line_len > READ_LEN {
@@ -182,78 +282,7 @@ fn print_bin(line: &mut [u8], address: usize, options: &HdOptions) -> bool {
         let mut i = 0;
         while i < READ_LEN {
             if i < line_len {
-                if line[i] == 0 {
-                    let spaces = "  ";
-                    new_line = format! {"{}{}\\0", new_line, spaces};
-                } else if line[i] == 7 {
-                    let spaces = "  ";
-                    new_line = format! {"{}{}\\a", new_line, spaces};
-                } else if line[i] == 8 {
-                    let spaces = "  ";
-                    new_line = format! {"{}{}\\b", new_line, spaces};
-                } else if line[i] == 9 {
-                    let spaces = "  ";
-                    new_line = format! {"{}{}\\t", new_line, spaces};
-                } else if line[i] == 10 {
-                    let spaces = "  ";
-                    new_line = format! {"{}{}\\n", new_line, spaces};
-                } else if line[i] == 11 {
-                    let spaces = "  ";
-                    new_line = format! {"{}{}\\v", new_line, spaces};
-                } else if line[i] == 12 {
-                    let spaces = "  ";
-                    new_line = format! {"{}{}\\f", new_line, spaces};
-                } else if line[i] == 13 {
-                    let spaces = "  ";
-                    new_line = format! {"{}{}\\r", new_line, spaces};
-                } else if line[i] == 123 {
-                    let spaces = "   ";
-                    new_line = format! {"{}{}{{", new_line, spaces};
-                } else if line[i] == 124 {
-                    let spaces = "   ";
-                    new_line = format! {"{}{}|", new_line, spaces};
-                } else if line[i] == 125 {
-                    let spaces = "   ";
-                    new_line = format! {"{}{}}}", new_line, spaces};
-                } else if line[i] == 126 {
-                    let spaces = "   ";
-                    new_line = format! {"{}{}~", new_line, spaces};
-                } else if line[i] == 1
-                    || line[i] == 2
-                    || line[i] == 3
-                    || line[i] == 4
-                    || line[i] == 5
-                    || line[i] == 6
-                    || line[i] == 14
-                    || line[i] == 15
-                    || line[i] == 16
-                    || line[i] == 17
-                    || line[i] == 18
-                    || line[i] == 19
-                    || line[i] == 20
-                    || line[i] == 21
-                    || line[i] == 22
-                    || line[i] == 23
-                    || line[i] == 24
-                    || line[i] == 25
-                    || line[i] == 26
-                    || line[i] == 27
-                    || line[i] == 28
-                    || line[i] == 29
-                    || line[i] == 30
-                    || line[i] == 31
-                    || line[i] > 126
-                {
-                    let spaces = " ";
-                    new_line = format! {"{}{}{:03o}", new_line, spaces, line[i]};
-                } else if line[i] < 123 {
-                    let spaces = "   ";
-                    let char = char::from(line[i]);
-                    new_line = format! {"{}{}{}", new_line, spaces, char};
-                }
-            } else {
-                let spaces = if i == 8 { "    " } else { "   " };
-                new_line = format! {"{}{}", new_line, spaces};
+                new_line = format_one_byte_char(&new_line, line, i);
             }
             i += 1;
         }
@@ -280,7 +309,15 @@ fn print_bin(line: &mut [u8], address: usize, options: &HdOptions) -> bool {
     true
 }
 
-// Open the file and print its content to stdout
+/// Open the file and print its content to stdout
+///
+/// Args:
+///   file - The file to hexdump
+///   req_bytes_to_dump - number of bytes to dump
+///   offset - The offset to start dumping at
+///   option - The format/nubmer options passed in
+/// Return:
+///   Result(bytes_dumped) if succes, or Err(error string)
 fn hexdump(
     file: String,
     req_bytes_to_dump: usize,
@@ -350,7 +387,7 @@ fn hexdump(
                     &format!("Didn't read {} bytes on line {:?}", READ_LEN, line).to_owned()
                 )
             });
-            if options.print_all_lines {
+            if options.no_squeezing {
                 let status = print_bin(&mut line, address, options);
                 if !status {
                     let custom_error = Error::new(ErrorKind::Other, "print_bin failed, exiting");
@@ -397,15 +434,15 @@ fn main() {
         println!("Value for length:{}", in_length);
         length = in_length;
     }
-    if let Some(in_offset) = args.offset {
-        println!("Value for offset:{}", in_offset);
+    if let Some(in_offset) = args.skip {
+        println!("Value for skip offset:{}", in_offset);
         bytes_to_skip = in_offset;
     }
     let opt: HdOptions = HdOptions {
         canonical: args.canonical,
         one_byte_char: args.one_byte_char,
         one_byte_octal: args.one_byte_octal,
-        print_all_lines: args.print_all_lines,
+        no_squeezing: args.no_squeezing,
         two_bytes_dec: args.two_bytes_dec,
         two_bytes_octal: args.two_bytes_octal,
         two_bytes_hex: args.two_bytes_hex,
@@ -429,7 +466,7 @@ fn main() {
             eprintln!("file does not exist, exiting.");
         }
     }
-    if args.print_all_lines {
+    if args.no_squeezing {
         println!("Execution time: {:#?}", now.elapsed());
     }
 }

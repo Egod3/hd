@@ -61,7 +61,7 @@ mod tests {
             canonical: false,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: true,
+            no_squeezing: true,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: false,
@@ -80,7 +80,7 @@ mod tests {
             canonical: false,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: true,
+            no_squeezing: true,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: false,
@@ -99,7 +99,7 @@ mod tests {
             canonical: true,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: true,
+            no_squeezing: true,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: false,
@@ -118,7 +118,7 @@ mod tests {
             canonical: false,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: true,
+            no_squeezing: true,
             two_bytes_dec: true,
             two_bytes_octal: false,
             two_bytes_hex: false,
@@ -134,7 +134,7 @@ mod tests {
             canonical: false,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: false,
+            no_squeezing: false,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: false,
@@ -150,7 +150,7 @@ mod tests {
             canonical: false,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: false,
+            no_squeezing: false,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: true,
@@ -167,7 +167,7 @@ mod tests {
             canonical: true,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: false,
+            no_squeezing: false,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: false,
@@ -189,7 +189,7 @@ mod tests {
             canonical: true,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: false,
+            no_squeezing: false,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: false,
@@ -214,7 +214,7 @@ mod tests {
             canonical: false,
             one_byte_char: false,
             one_byte_octal: true,
-            print_all_lines: false,
+            no_squeezing: false,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: false,
@@ -243,7 +243,7 @@ mod tests {
             canonical: true,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: false,
+            no_squeezing: false,
             two_bytes_octal: false,
             two_bytes_dec: false,
             two_bytes_hex: false,
@@ -269,7 +269,7 @@ mod tests {
             canonical: true,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: false,
+            no_squeezing: false,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: false,
@@ -295,14 +295,14 @@ mod tests {
     }
 
     #[test]
-    fn test_hd_print_all_lines() {
+    fn test_hd_no_squeezing() {
         use crate::HdOptions;
         use crate::hexdump;
         let opt: HdOptions = HdOptions {
             canonical: true,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: true,
+            no_squeezing: true,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: false,
@@ -319,14 +319,14 @@ mod tests {
     }
 
     #[test]
-    fn test_hd_print_all_lines_two() {
+    fn test_hd_no_squeezing_two() {
         use crate::HdOptions;
         use crate::hexdump;
         let opt: HdOptions = HdOptions {
             canonical: false,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: true,
+            no_squeezing: true,
             two_bytes_dec: false,
             two_bytes_octal: true,
             two_bytes_hex: false,
@@ -344,14 +344,14 @@ mod tests {
     }
 
     #[test]
-    fn test_hd_print_all_lines_three() {
+    fn test_hd_no_squeezing_three() {
         use crate::HdOptions;
         use crate::hexdump;
         let opt: HdOptions = HdOptions {
             canonical: true,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: true,
+            no_squeezing: true,
             two_bytes_octal: false,
             two_bytes_dec: false,
             two_bytes_hex: false,
@@ -384,7 +384,7 @@ mod tests {
             canonical: false,
             one_byte_char: false,
             one_byte_octal: true,
-            print_all_lines: true,
+            no_squeezing: true,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: false,
@@ -406,7 +406,7 @@ mod tests {
             canonical: false,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: false,
+            no_squeezing: false,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: false,
@@ -428,7 +428,7 @@ mod tests {
             canonical: true,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: false,
+            no_squeezing: false,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: false,
@@ -450,7 +450,7 @@ mod tests {
             canonical: true,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: false,
+            no_squeezing: false,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: false,
@@ -472,7 +472,7 @@ mod tests {
             canonical: false,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: false,
+            no_squeezing: false,
             two_bytes_dec: false,
             two_bytes_octal: true,
             two_bytes_hex: false,
@@ -494,7 +494,7 @@ mod tests {
             canonical: false,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: true,
+            no_squeezing: true,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: false,
@@ -516,7 +516,7 @@ mod tests {
             canonical: true,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: false,
+            no_squeezing: false,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: false,
@@ -538,7 +538,7 @@ mod tests {
             canonical: true,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: false,
+            no_squeezing: false,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: false,
@@ -560,7 +560,7 @@ mod tests {
             canonical: false,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: true,
+            no_squeezing: true,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: true,
@@ -582,7 +582,7 @@ mod tests {
             canonical: false,
             one_byte_char: false,
             one_byte_octal: false,
-            print_all_lines: false,
+            no_squeezing: false,
             two_bytes_dec: false,
             two_bytes_octal: false,
             two_bytes_hex: true,
